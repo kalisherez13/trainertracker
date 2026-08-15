@@ -122,7 +122,7 @@ svg { display: inline-block; vertical-align: middle; }
   background: #1c1917; border: 1px solid #292524;
   border-radius: 14px; padding: 12px 14px;
   transition: transform 0.2s, border-color 0.2s, background 0.2s;
-  display: block;
+  display: block; cursor: pointer;
 }
 .trainee-card:active { transform: scale(0.98); }
 .trainee-card.tapped {
@@ -130,6 +130,17 @@ svg { display: inline-block; vertical-align: middle; }
   transform: scale(1.02);
 }
 .trainee-row1 { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 6px; }
+
+.big-add-btn {
+  width: 100%; padding: 12px; margin-bottom: 10px;
+  border-radius: 12px; background: rgba(245,158,11,0.12);
+  border: 1.5px dashed rgba(245,158,11,0.5);
+  color: #f59e0b; font-size: 14px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  transition: background 0.15s, transform 0.1s;
+}
+.big-add-btn svg { width: 18px; height: 18px; }
+.big-add-btn:active { background: rgba(245,158,11,0.25); transform: scale(0.98); }
 .trainee-info { flex: 1; min-width: 0; text-align: right; }
 .trainee-name {
   font-size: 16px; font-weight: 700;
@@ -151,6 +162,10 @@ svg { display: inline-block; vertical-align: middle; }
 .icon-btn.share:active { color: #34d399; }
 .icon-btn.pay:active { color: #38bdf8; }
 .icon-btn.danger:active { color: #fb7185; }
+.icon-btn.quick { color: #f59e0b; }
+.icon-btn.quick:active { background: rgba(245,158,11,0.2); }
+.icon-btn.chevron { color: #57534e; width: 22px; }
+.icon-btn.chevron svg { width: 14px; height: 14px; }
 .icon-btn svg { width: 16px; height: 16px; }
 
 .balance-row {
@@ -345,6 +360,146 @@ textarea.share-text {
 a { color: #f59e0b; }
 .link-btn { background: none; color: #f59e0b; padding: 0; font-weight: 700; }
 
+/* ===== TRAINEE DETAIL VIEW ===== */
+.detail-overlay {
+  position: fixed; inset: 0; z-index: 40;
+  background: #0c0a09;
+  display: none; flex-direction: column;
+}
+.detail-overlay.active { display: flex; }
+.detail-header {
+  background: linear-gradient(to left, #d97706, #ea580c, #e11d48);
+  padding: 16px 16px 20px;
+  padding-top: calc(16px + env(safe-area-inset-top));
+  position: relative; overflow: hidden; flex-shrink: 0;
+}
+.detail-header::before {
+  content: ''; position: absolute; inset: 0;
+  background-image: radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 30%, white 1px, transparent 1px);
+  background-size: 40px 40px; opacity: 0.1;
+}
+.detail-header-top { position: relative; display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.detail-back {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: rgba(0,0,0,0.25); color: white;
+  display: flex; align-items: center; justify-content: center;
+}
+.detail-back svg { width: 20px; height: 20px; }
+.detail-header-actions { display: flex; gap: 6px; }
+.detail-header-actions .icon-btn { background: rgba(0,0,0,0.25); color: white; }
+.detail-header-actions .icon-btn:active { background: rgba(0,0,0,0.4); }
+.detail-name { position: relative; font-size: 24px; font-weight: 800; color: white; margin-bottom: 4px; }
+.detail-sub { position: relative; font-size: 13px; color: rgba(255,255,255,0.85); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.detail-sub a { color: white; text-decoration: underline; }
+
+.detail-body { flex: 1; overflow-y: auto; padding: 16px; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+
+.detail-actions-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+.detail-action-btn {
+  background: #1c1917; border: 1px solid #292524; border-radius: 14px;
+  padding: 12px 8px; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  transition: transform 0.15s, background 0.15s;
+}
+.detail-action-btn:active { transform: scale(0.95); background: #292524; }
+.detail-action-btn svg { width: 20px; height: 20px; }
+.detail-action-btn span { font-size: 11px; font-weight: 600; }
+.detail-action-btn.quick { color: #f59e0b; }
+.detail-action-btn.pay { color: #34d399; }
+.detail-action-btn.share { color: #38bdf8; }
+
+.cycle-card {
+  background: #1c1917; border: 1px solid #292524; border-radius: 16px;
+  padding: 16px; margin-bottom: 12px;
+}
+.cycle-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.cycle-card-title { font-size: 13px; color: #a8a29e; font-weight: 500; }
+.cycle-card-count { font-size: 32px; font-weight: 800; color: #f59e0b; }
+.cycle-card-since { font-size: 11px; color: #78716c; margin-top: 2px; }
+.cycle-reset-hint { font-size: 11px; color: #57534e; margin-top: 8px; padding-top: 8px; border-top: 1px solid #292524; }
+
+.all-time-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+.all-time-stat {
+  background: #0c0a09; border: 1px solid #292524; border-radius: 12px;
+  padding: 10px; text-align: center;
+}
+.all-time-stat .num { font-size: 18px; font-weight: 700; }
+.all-time-stat .lbl { font-size: 11px; color: #78716c; margin-top: 2px; }
+
+.reset-debt-btn {
+  width: 100%; padding: 10px; border-radius: 12px;
+  background: rgba(244,63,94,0.1); border: 1px solid rgba(244,63,94,0.3);
+  color: #fb7185; font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin-bottom: 16px;
+}
+.reset-debt-btn:active { background: rgba(244,63,94,0.2); }
+.reset-debt-btn svg { width: 14px; height: 14px; }
+
+.program-btn {
+  width: 100%; padding: 12px 14px; margin-bottom: 12px;
+  border-radius: 14px; background: rgba(56,189,248,0.1);
+  border: 1px solid rgba(56,189,248,0.3);
+  color: #38bdf8; font-size: 14px; font-weight: 700;
+  display: flex; align-items: center; gap: 8px;
+}
+.program-btn:active { background: rgba(56,189,248,0.2); }
+.program-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+.program-btn span:first-of-type { flex: 1; text-align: right; }
+.program-badge {
+  font-size: 11px; font-weight: 700; color: #0c0a09;
+  background: #38bdf8; padding: 2px 8px; border-radius: 999px;
+}
+
+/* Exercise editor rows (training program) */
+.exercise-row {
+  background: #0c0a09; border: 1px solid #292524; border-radius: 12px;
+  padding: 10px; margin-bottom: 8px; position: relative;
+}
+.exercise-row-top { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.exercise-row-top input.ex-name {
+  flex: 1; background: #1c1917; border: 1px solid #292524;
+  border-radius: 10px; padding: 10px 12px; color: #f5f5f4; outline: none;
+}
+.exercise-row-top input.ex-name:focus { border-color: #f59e0b; }
+.exercise-remove-btn {
+  width: 32px; height: 32px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: #78716c; border-radius: 8px;
+}
+.exercise-remove-btn:active { background: rgba(244,63,94,0.15); color: #fb7185; }
+.exercise-remove-btn svg { width: 16px; height: 16px; }
+.exercise-row-details { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.exercise-row-details input {
+  background: #1c1917; border: 1px solid #292524;
+  border-radius: 10px; padding: 8px 10px; color: #f5f5f4; outline: none;
+  font-size: 13px; text-align: center;
+}
+.exercise-row-details input:focus { border-color: #f59e0b; }
+.exercise-row input.ex-notes {
+  width: 100%; background: #1c1917; border: 1px solid #292524;
+  border-radius: 10px; padding: 8px 10px; color: #a8a29e; outline: none;
+  font-size: 12px;
+}
+.exercise-row input.ex-notes:focus { border-color: #f59e0b; }
+.exercise-num {
+  position: absolute; top: -8px; right: 10px;
+  background: #f59e0b; color: #0c0a09; font-size: 10px; font-weight: 800;
+  width: 18px; height: 18px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.add-exercise-btn {
+  width: 100%; padding: 10px; border-radius: 12px;
+  background: #1c1917; border: 1px dashed #44403c;
+  color: #a8a29e; font-size: 13px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin-bottom: 16px;
+}
+.add-exercise-btn:active { background: #292524; }
+.add-exercise-btn svg { width: 14px; height: 14px; }
+.program-empty-hint { font-size: 12px; color: #78716c; text-align: center; padding: 12px 0; }
+
+.detail-history-title { font-size: 14px; font-weight: 700; color: #d6d3d1; margin-bottom: 8px; }
+
 /* Big balance display in payment modal */
 .current-balance-big {
   text-align: center; padding: 16px;
@@ -513,6 +668,51 @@ body.logged-out { overflow: hidden; }
 
 <div id="toast" style="display:none"></div>
 
+<!-- Trainee Detail Full View -->
+<div class="detail-overlay" id="detail-overlay">
+  <div class="detail-header">
+    <div class="detail-header-top">
+      <span class="detail-back" onclick="closeTraineeDetail()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6" transform="rotate(180 12 12)"/></svg>
+      </span>
+      <div class="detail-header-actions">
+        <span class="icon-btn edit" onclick="editTrainee(state.detailTraineeId)" title="ערוך">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        </span>
+        <span class="icon-btn danger" onclick="requestDeleteTrainee(state.detailTraineeId)" title="מחק">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
+        </span>
+      </div>
+    </div>
+    <div class="detail-name" id="detail-name"></div>
+    <div class="detail-sub" id="detail-sub"></div>
+  </div>
+  <div class="detail-body" id="detail-body"></div>
+</div>
+
+<!-- Training Program Modal -->
+<div class="modal-overlay" id="modal-program" onclick="closeProgramModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <h2 style="display:flex;align-items:center;gap:8px;">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      תוכנית אימון
+    </h2>
+    <p class="subtitle" id="program-subtitle"></p>
+    <div class="field">
+      <label>שם התוכנית</label>
+      <input type="text" id="prog-title" placeholder="לדוגמה: פלג גוף עליון - אימון A">
+    </div>
+    <div id="exercise-rows"></div>
+    <button class="add-exercise-btn" onclick="addExerciseRow()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      הוסף תרגיל
+    </button>
+    <button class="btn-primary" onclick="saveProgramFromForm()">שמור תוכנית</button>
+    <button class="btn-primary success" onclick="saveAndShareProgram()">שמור ושלח למתאמן</button>
+  </div>
+</div>
+
 <!-- Add/Edit Trainee Modal -->
 <div class="modal-overlay" id="modal-trainee" onclick="closeTraineeModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
@@ -560,7 +760,7 @@ body.logged-out { overflow: hidden; }
 <div class="modal-overlay" id="modal-share" onclick="closeShareModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-handle"></div>
-    <h2 style="display:flex;align-items:center;gap:8px;">
+    <h2 style="display:flex;align-items:center;gap:8px;" id="share-modal-title">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
       שלח סיכום למתאמן
     </h2>
@@ -635,6 +835,10 @@ const state = {
   tappedId: null,
   pendingConfirm: null,
   paymentTraineeId: null,
+  detailTraineeId: null,
+  programTraineeId: null,
+  shareTraineeId: null,
+  shareKind: 'summary',
 };
 
 // ========== STORAGE ==========
@@ -664,7 +868,7 @@ function loadAll() {
   }
 }
 
-// Migration: convert old `paid: true` sessions to payments
+// Migration: convert old `paid: true` sessions to payments, add cycleStartAt
 function migrateData() {
   let migrated = false;
   const newPayments = [];
@@ -684,6 +888,15 @@ function migrateData() {
   });
   if (migrated) {
     state.payments = state.payments.concat(newPayments);
+  }
+  // Ensure every trainee has a cycleStartAt (for "sessions since last payment" counter)
+  state.trainees.forEach(t => {
+    if (!t.cycleStartAt) {
+      t.cycleStartAt = t.createdAt || new Date(0).toISOString();
+      migrated = true;
+    }
+  });
+  if (migrated) {
     saveAll();
   }
 }
@@ -736,18 +949,27 @@ function getTraineeBalance(traineeId) {
 }
 
 function getTraineeStats(traineeId) {
+  const trainee = state.trainees.find(t => t.id === traineeId);
   const ts = state.sessions.filter(s => s.traineeId === traineeId);
-  const ps = state.payments.filter(p => p.traineeId === traineeId);
+  const ps = state.payments.filter(p => p.traineeId === traineeId && !p.isAdjustment);
   const lastSession = ts.length > 0
     ? ts.reduce((latest, s) => new Date(s.date) > new Date(latest.date) ? s : latest, ts[0])
     : null;
   const balance = getTraineeBalance(traineeId);
+
+  // "Current cycle" = sessions logged since the last payment/reset (avoids confusing all-time counting)
+  const cycleStartAt = trainee && trainee.cycleStartAt ? new Date(trainee.cycleStartAt) : new Date(0);
+  const cycleSessions = ts.filter(s => new Date(s.createdAt || s.date) >= cycleStartAt);
+
   return {
     sessionCount: ts.length,
     totalPaid: ps.reduce((sum, p) => sum + p.amount, 0),
     totalCharged: ts.reduce((sum, s) => sum + s.rate, 0),
     balance,
-    lastSession
+    lastSession,
+    cycleSessionCount: cycleSessions.length,
+    cycleCharged: cycleSessions.reduce((sum, s) => sum + s.rate, 0),
+    cycleStartAt: trainee ? trainee.cycleStartAt : null
   };
 }
 
@@ -784,6 +1006,7 @@ function render() {
   if (state.activeTab === 'dashboard') renderDashboard();
   else if (state.activeTab === 'trainees') renderTrainees();
   else if (state.activeTab === 'sessions') renderHistory();
+  if (state.detailTraineeId) renderTraineeDetail();
 }
 
 function renderDashboard() {
@@ -876,7 +1099,7 @@ function renderTrainees() {
   if (state.trainees.length > 0) {
     html += `<div class="tip">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-      <span><strong>טיפ:</strong> לחיצה על שם המתאמן רושמת אימון להיום</span>
+      <span><strong>טיפ:</strong> לחיצה על השם פותחת כרטיס מלא · הכפתור הגדול מוסיף אימון מיידית</span>
     </div>`;
   }
 
@@ -902,8 +1125,8 @@ function renderTrainees() {
       const subHtml = subParts.join('<span class="sep">·</span>');
 
       html += `
-        <button class="trainee-card${isTapped ? ' tapped' : ''}" onclick="quickAddSession('${t.id}')">
-          <div class="trainee-row1">
+        <div class="trainee-card${isTapped ? ' tapped' : ''}">
+          <div class="trainee-row1" onclick="openTraineeDetail('${t.id}')" ontouchstart="" style="cursor:pointer;">
             <div class="trainee-info">
               <div class="trainee-name">${escapeHtml(t.name)}${tappedBadge}</div>
               <div class="trainee-sub">${subHtml}</div>
@@ -912,25 +1135,22 @@ function renderTrainees() {
               <span class="icon-btn pay" onclick="event.stopPropagation(); openPaymentModal('${t.id}')" title="רישום תשלום">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
               </span>
-              <span class="icon-btn share" onclick="event.stopPropagation(); openShareModal('${t.id}')" title="שלח סיכום">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-              </span>
-              <span class="icon-btn edit" onclick="event.stopPropagation(); editTrainee('${t.id}')" title="ערוך">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-              </span>
-              <span class="icon-btn danger" onclick="event.stopPropagation(); requestDeleteTrainee('${t.id}')" title="מחק">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
+              <span class="icon-btn chevron" title="פרטים מלאים">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6" transform="rotate(180 12 12)"/></svg>
               </span>
             </div>
           </div>
+          <button class="big-add-btn" onclick="quickAddSession('${t.id}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            הוסף אימון להיום
+          </button>
           <div class="balance-row">
             <div class="balance-stats">
-              <span class="stat-pill"><strong>${stats.sessionCount}</strong>אימונים</span>
-              <span class="stat-pill"><strong>₪${stats.totalPaid.toLocaleString()}</strong>שולם</span>
+              <span class="stat-pill"><strong>${stats.cycleSessionCount}</strong>אימונים מאז תשלום</span>
             </div>
             <span class="balance-display ${bl.cls}">${bl.text}</span>
           </div>
-        </button>
+        </div>
       `;
     });
   }
@@ -1031,6 +1251,220 @@ function renderHistory() {
   document.getElementById('section-sessions').innerHTML = html;
 }
 
+// ========== TRAINEE DETAIL VIEW ==========
+function openTraineeDetail(id) {
+  const t = state.trainees.find(x => x.id === id);
+  if (!t) return;
+  state.detailTraineeId = id;
+  document.getElementById('detail-overlay').classList.add('active');
+  renderTraineeDetail();
+}
+
+function closeTraineeDetail() {
+  state.detailTraineeId = null;
+  document.getElementById('detail-overlay').classList.remove('active');
+}
+
+function renderTraineeDetail() {
+  const t = state.trainees.find(x => x.id === state.detailTraineeId);
+  if (!t) { closeTraineeDetail(); return; }
+  const stats = getTraineeStats(t.id);
+  const bl = balanceLabel(stats.balance);
+
+  // Header
+  document.getElementById('detail-name').textContent = t.name;
+  const subParts = [`₪${t.rate}/אימון`];
+  if (t.phone) subParts.push(`<a href="tel:${escapeHtml(t.phone)}">${escapeHtml(t.phone)}</a>`);
+  document.getElementById('detail-sub').innerHTML = subParts.join(' · ');
+
+  // Body
+  let html = '';
+
+  // Quick action buttons
+  html += `
+    <div class="detail-actions-grid">
+      <button class="detail-action-btn quick" onclick="quickAddSession('${t.id}')">
+        <svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <span>אימון להיום</span>
+      </button>
+      <button class="detail-action-btn pay" onclick="openPaymentModal('${t.id}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <span>תשלום</span>
+      </button>
+      <button class="detail-action-btn share" onclick="openShareModal('${t.id}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        <span>שלח סיכום</span>
+      </button>
+    </div>
+  `;
+
+  // Training program button (full width, separate row)
+  const hasProgram = t.program && Array.isArray(t.program.exercises) && t.program.exercises.length > 0;
+  html += `
+    <button class="program-btn" onclick="openProgramModal('${t.id}')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      <span>${hasProgram ? 'ערוך תוכנית אימון' : 'הכן תוכנית אימון'}</span>
+      ${hasProgram ? `<span class="program-badge">${t.program.exercises.length} תרגילים</span>` : ''}
+    </button>
+  `;
+
+  // Balance
+  const balCls = stats.balance > 0 ? 'credit' : (stats.balance < 0 ? 'debt' : 'zero');
+  html += `
+    <div class="current-balance-big ${balCls}" style="margin-bottom:12px;">
+      <div class="label">יתרה נוכחית</div>
+      <div class="amount">${bl.text}</div>
+    </div>
+  `;
+
+  // Current cycle (since last payment)
+  const sinceText = stats.cycleStartAt ? formatDate(stats.cycleStartAt) : '—';
+  html += `
+    <div class="cycle-card">
+      <div class="cycle-card-header">
+        <span class="cycle-card-title">אימונים מאז התשלום האחרון</span>
+      </div>
+      <div class="cycle-card-count">${stats.cycleSessionCount}</div>
+      <div class="cycle-card-since">מאז ${sinceText} · חויב ₪${stats.cycleCharged.toLocaleString()} במחזור הנוכחי</div>
+    </div>
+  `;
+
+  // All-time stats
+  html += `
+    <div class="all-time-row">
+      <div class="all-time-stat"><div class="num" style="color:#fbbf24">${stats.sessionCount}</div><div class="lbl">אימונים בסה״כ</div></div>
+      <div class="all-time-stat"><div class="num" style="color:#34d399">₪${stats.totalPaid.toLocaleString()}</div><div class="lbl">שולם בסה״כ</div></div>
+    </div>
+  `;
+
+  // Reset debt button
+  html += `
+    <button class="reset-debt-btn" onclick="resetTraineeDebt('${t.id}')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+      איפוס חוב / יתרה
+    </button>
+  `;
+
+  // History for this trainee
+  const transactions = [];
+  state.sessions.filter(s => s.traineeId === t.id).forEach(s => transactions.push({ ...s, _type: 'session' }));
+  state.payments.filter(p => p.traineeId === t.id).forEach(p => transactions.push({ ...p, _type: 'payment' }));
+  transactions.sort((a, b) => {
+    const dateCompare = new Date(b.date) - new Date(a.date);
+    if (dateCompare !== 0) return dateCompare;
+    return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+  });
+
+  html += `<div class="detail-history-title">היסטוריה</div>`;
+
+  if (transactions.length === 0) {
+    html += `<div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <p>עוד אין רשומות למתאמן זה</p>
+    </div>`;
+  } else {
+    html += `<div style="display:flex; flex-direction:column; gap:10px;">`;
+    transactions.forEach(tx => {
+      if (tx._type === 'session') {
+        html += `
+          <div class="txn-card txn-session">
+            <div class="txn-info">
+              <div class="txn-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                אימון
+              </div>
+              <div class="txn-meta">${formatDate(tx.date)}${tx.notes ? ' · ' + escapeHtml(tx.notes) : ''}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <span class="txn-amount">−₪${tx.rate}</span>
+              <button class="icon-btn edit" onclick="editSession('${tx.id}')" title="ערוך">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              </button>
+              <button class="icon-btn danger" onclick="requestDeleteSession('${tx.id}')" title="מחק">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
+              </button>
+            </div>
+          </div>
+        `;
+      } else if (tx.isAdjustment) {
+        html += `
+          <div class="txn-card" style="background: rgba(120,113,108,0.15); border-color: rgba(120,113,108,0.4);">
+            <div class="txn-info">
+              <div class="txn-title" style="color:#d6d3d1;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+                איפוס יתרה
+              </div>
+              <div class="txn-meta">${formatDate(tx.date)}${tx.notes ? ' · ' + escapeHtml(tx.notes) : ''}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <span class="txn-amount" style="color:#d6d3d1;">${tx.amount >= 0 ? '+' : ''}₪${tx.amount.toLocaleString()}</span>
+              <button class="icon-btn danger" onclick="requestDeletePayment('${tx.id}')" title="מחק">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
+              </button>
+            </div>
+          </div>
+        `;
+      } else {
+        html += `
+          <div class="txn-card txn-payment">
+            <div class="txn-info">
+              <div class="txn-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                תשלום
+              </div>
+              <div class="txn-meta">${formatDate(tx.date)}${tx.notes ? ' · ' + escapeHtml(tx.notes) : ''}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <span class="txn-amount">+₪${tx.amount.toLocaleString()}</span>
+              <button class="icon-btn edit" onclick="editPayment('${tx.id}')" title="ערוך">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              </button>
+              <button class="icon-btn danger" onclick="requestDeletePayment('${tx.id}')" title="מחק">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
+              </button>
+            </div>
+          </div>
+        `;
+      }
+    });
+    html += `</div>`;
+  }
+
+  document.getElementById('detail-body').innerHTML = html;
+}
+
+// Reset a trainee's balance to zero AND restart the session counter (records an adjustment entry, keeps history)
+function resetTraineeDebt(id) {
+  const t = state.trainees.find(x => x.id === id);
+  if (!t) return;
+  const balance = getTraineeBalance(id);
+  if (balance === 0) {
+    showToast('כבר מאוזן · אין מה לאפס');
+    return;
+  }
+  const bl = balanceLabel(balance);
+  showConfirm(
+    'לאפס את היתרה?',
+    `היתרה הנוכחית של ${t.name} היא ${bl.text}. האיפוס ירשם בהיסטוריה ויאפס גם את מונה האימונים.`,
+    () => {
+      state.payments.push({
+        id: Date.now().toString() + Math.random().toString(36).slice(2),
+        traineeId: id,
+        amount: -balance,
+        date: new Date().toISOString().split('T')[0],
+        notes: 'איפוס חוב/יתרה',
+        isAdjustment: true,
+        createdAt: new Date().toISOString()
+      });
+      t.cycleStartAt = new Date().toISOString();
+      saveAll();
+      render();
+      showToast(`🔄 היתרה של ${t.name} אופסה`);
+      closeConfirm();
+    }
+  );
+}
+
 // ========== ACTIONS ==========
 function quickAddSession(traineeId) {
   const trainee = state.trainees.find(t => t.id === traineeId);
@@ -1114,7 +1548,8 @@ function saveTraineeFromForm() {
   } else {
     state.trainees.push({
       id: Date.now().toString() + Math.random().toString(36).slice(2),
-      name, rate, phone, createdAt: new Date().toISOString()
+      name, rate, phone, createdAt: new Date().toISOString(),
+      cycleStartAt: new Date().toISOString()
     });
     showToast(`👤 ${name} נוסף`);
   }
@@ -1131,7 +1566,9 @@ function requestDeleteTrainee(id) {
     `${t.name} יוסר מהרשימה. ההיסטוריה (אימונים ותשלומים) תישאר.`,
     () => {
       state.trainees = state.trainees.filter(x => x.id !== id);
-      saveAll(); render();
+      saveAll();
+      if (state.detailTraineeId === id) closeTraineeDetail();
+      render();
       showToast(`🗑️ ${t.name} נמחק`);
     }
   );
@@ -1277,6 +1714,113 @@ function saveSessionFromForm() {
   }
 }
 
+// ========== TRAINING PROGRAM MODAL ==========
+let exerciseRowCounter = 0;
+
+function openProgramModal(traineeId) {
+  const t = state.trainees.find(x => x.id === traineeId);
+  if (!t) return;
+  state.programTraineeId = traineeId;
+
+  document.getElementById('program-subtitle').textContent = `תוכנית עבור ${t.name}`;
+  document.getElementById('prog-title').value = (t.program && t.program.title) || '';
+  document.getElementById('exercise-rows').innerHTML = '';
+  exerciseRowCounter = 0;
+
+  const exercises = (t.program && Array.isArray(t.program.exercises) && t.program.exercises.length > 0)
+    ? t.program.exercises
+    : [{}]; // start with one blank row if no program yet
+
+  exercises.forEach(ex => addExerciseRow(ex));
+
+  document.getElementById('modal-program').classList.add('active');
+}
+
+function closeProgramModal(event) {
+  if (event && event.target.id !== 'modal-program') return;
+  document.getElementById('modal-program').classList.remove('active');
+  state.programTraineeId = null;
+}
+
+function addExerciseRow(ex) {
+  ex = ex || {};
+  exerciseRowCounter++;
+  const rowId = 'exrow_' + exerciseRowCounter;
+  const wrap = document.createElement('div');
+  wrap.className = 'exercise-row';
+  wrap.id = rowId;
+  wrap.innerHTML = `
+    <span class="exercise-num">${document.querySelectorAll('#exercise-rows .exercise-row').length + 1}</span>
+    <div class="exercise-row-top">
+      <input type="text" class="ex-name" placeholder="שם התרגיל (לדוגמה: סקוואט)" value="${escapeHtml(ex.name || '')}">
+      <span class="exercise-remove-btn" onclick="removeExerciseRow('${rowId}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/></svg>
+      </span>
+    </div>
+    <div class="exercise-row-details">
+      <input type="text" class="ex-sets" placeholder="סטים (לדוגמה: 3)" value="${escapeHtml(ex.sets || '')}">
+      <input type="text" class="ex-reps" placeholder="חזרות (לדוגמה: 12)" value="${escapeHtml(ex.reps || '')}">
+    </div>
+    <input type="text" class="ex-notes" placeholder="הערות (לדוגמה: קצב איטי, מנוחה 60 שניות)" value="${escapeHtml(ex.notes || '')}">
+  `;
+  document.getElementById('exercise-rows').appendChild(wrap);
+}
+
+function removeExerciseRow(rowId) {
+  const el = document.getElementById(rowId);
+  if (el) el.remove();
+  // Renumber remaining badges
+  document.querySelectorAll('#exercise-rows .exercise-row').forEach((row, i) => {
+    const badge = row.querySelector('.exercise-num');
+    if (badge) badge.textContent = i + 1;
+  });
+}
+
+function collectProgramFromForm() {
+  const title = document.getElementById('prog-title').value.trim();
+  const exercises = [];
+  document.querySelectorAll('#exercise-rows .exercise-row').forEach(row => {
+    const name = row.querySelector('.ex-name').value.trim();
+    const sets = row.querySelector('.ex-sets').value.trim();
+    const reps = row.querySelector('.ex-reps').value.trim();
+    const notes = row.querySelector('.ex-notes').value.trim();
+    if (name || sets || reps || notes) {
+      exercises.push({ name, sets, reps, notes });
+    }
+  });
+  return { title, exercises, updatedAt: new Date().toISOString() };
+}
+
+function saveProgramFromForm() {
+  const t = state.trainees.find(x => x.id === state.programTraineeId);
+  if (!t) return;
+  const program = collectProgramFromForm();
+  if (program.exercises.length === 0) {
+    showToast('⚠️ הוסף לפחות תרגיל אחד');
+    return;
+  }
+  t.program = program;
+  saveAll();
+  closeProgramModal({target:{id:'modal-program'}});
+  render();
+  showToast(`💾 תוכנית האימון של ${t.name} נשמרה`);
+}
+
+function saveAndShareProgram() {
+  const t = state.trainees.find(x => x.id === state.programTraineeId);
+  if (!t) return;
+  const program = collectProgramFromForm();
+  if (program.exercises.length === 0) {
+    showToast('⚠️ הוסף לפחות תרגיל אחד');
+    return;
+  }
+  t.program = program;
+  saveAll();
+  closeProgramModal({target:{id:'modal-program'}});
+  render();
+  openShareModal(t.id, 'program');
+}
+
 // ========== PAYMENT MODAL ==========
 function openPaymentModal(traineeId) {
   state.editingPayment = null;
@@ -1405,6 +1949,8 @@ function savePaymentFromForm() {
       traineeId, amount, date, notes,
       createdAt: new Date().toISOString()
     });
+    // A new payment starts a fresh cycle - the "sessions since payment" counter resets
+    trainee.cycleStartAt = new Date().toISOString();
     saveAll();
     closePaymentModal({target:{id:'modal-payment'}});
     render();
@@ -1413,7 +1959,7 @@ function savePaymentFromForm() {
     if (newBalance > 0) msg += `יתרה ₪${newBalance.toLocaleString()}`;
     else if (newBalance < 0) msg += `נותר חוב ₪${Math.abs(newBalance).toLocaleString()}`;
     else msg += `מאוזן`;
-    showToast(msg);
+    showToast(msg + ' · מונה האימונים אופס');
   }
 }
 
@@ -1458,13 +2004,53 @@ function buildShareMessage(traineeId) {
   return msg;
 }
 
-function openShareModal(traineeId) {
+function buildProgramMessage(traineeId) {
+  const trainee = state.trainees.find(t => t.id === traineeId);
+  const program = trainee.program;
+  if (!program || !Array.isArray(program.exercises) || program.exercises.length === 0) {
+    return `היי ${trainee.name}! 💪\nעדיין לא הוכנה לך תוכנית אימון.`;
+  }
+
+  let msg = `היי ${trainee.name}! 💪\n`;
+  msg += `התוכנית שלך${program.title ? ' - ' + program.title : ''}:\n\n`;
+
+  program.exercises.forEach((ex, i) => {
+    let line = `${i + 1}. ${ex.name || 'תרגיל'}`;
+    const details = [];
+    if (ex.sets) details.push(`${ex.sets} סטים`);
+    if (ex.reps) details.push(`${ex.reps} חזרות`);
+    if (details.length) line += ` — ${details.join(' × ')}`;
+    msg += line + '\n';
+    if (ex.notes) msg += `   💬 ${ex.notes}\n`;
+  });
+
+  msg += `\nבהצלחה באימון! 💪`;
+  return msg;
+}
+
+function openShareModal(traineeId, kind) {
+  kind = kind || 'summary';
   const trainee = state.trainees.find(t => t.id === traineeId);
   if (!trainee) return;
 
-  document.getElementById('share-subtitle').textContent = `סיכום עבור ${trainee.name}`;
-  const message = buildShareMessage(traineeId);
-  document.getElementById('share-message').value = message;
+  state.shareTraineeId = traineeId;
+  state.shareKind = kind;
+
+  if (kind === 'program') {
+    document.getElementById('share-subtitle').textContent = `תוכנית אימון עבור ${trainee.name}`;
+    document.getElementById('share-message').value = buildProgramMessage(traineeId);
+    document.getElementById('share-modal-title').innerHTML = `
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      שלח תוכנית אימון
+    `;
+  } else {
+    document.getElementById('share-subtitle').textContent = `סיכום עבור ${trainee.name}`;
+    document.getElementById('share-message').value = buildShareMessage(traineeId);
+    document.getElementById('share-modal-title').innerHTML = `
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      שלח סיכום למתאמן
+    `;
+  }
 
   // Build action buttons
   let buttonsHtml = '';
@@ -1536,6 +2122,7 @@ async function nativeShareMessage() {
 function showConfirm(title, message, onConfirm) {
   document.getElementById('confirm-title').textContent = title;
   document.getElementById('confirm-message').textContent = message;
+  document.querySelector('#confirm-dialog .btn-confirm-delete').textContent = 'מחק';
   state.pendingConfirm = onConfirm;
   document.getElementById('confirm-dialog').classList.add('active');
 }
