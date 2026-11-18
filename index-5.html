@@ -294,6 +294,19 @@ svg { display: inline-block; vertical-align: middle; }
 .btn-primary:active { transform: scale(0.98); }
 .btn-primary:disabled { opacity: 0.5; }
 
+.pay-types { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
+.pay-types button { padding: 10px 6px; border-radius: 12px; background: #0c0a09; border: 1px solid #292524; color: #d6d3d1; font-weight: 600; font-size: 14px; }
+.pay-types button.on { border-color: #f59e0b; color: #fbbf24; background: rgba(245,158,11,0.12); }
+.pay-hint { font-size: 12px; color: #a8a29e; margin: -4px 0 12px; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.receipt-card { border: 1.5px solid #f59e0b; border-radius: 16px; padding: 14px 16px; background: #0c0a09; margin-bottom: 12px; }
+.receipt-card .r-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid #292524; font-size: 14px; }
+.receipt-card .r-row:last-child { border-bottom: none; }
+.receipt-card .r-row span:first-child { color: #a8a29e; }
+.receipt-card .r-amount { font-size: 26px; font-weight: 800; color: #34d399; }
+.receipt-note { font-size: 11px; color: #78716c; margin-top: 10px; line-height: 1.5; }
+.receipt-warn { font-size: 13px; color: #fbbf24; margin-bottom: 10px; }
+.icon-btn.receipt { color: #fbbf24; }
 .btn-secondary {
   width: 100%; padding: 10px; border-radius: 12px;
   background: #292524; color: #d6d3d1; font-weight: 500;
@@ -756,6 +769,32 @@ body.logged-out { overflow: hidden; }
   </div>
 </div>
 
+<!-- Receipt Modal -->
+<div class="modal-overlay" id="modal-receipt" onclick="closeReceipt(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <h2 id="receipt-title">קבלה</h2>
+    <div id="receipt-content"></div>
+  </div>
+</div>
+
+<!-- Business details Modal (printed on receipts) -->
+<div class="modal-overlay" id="modal-business" onclick="closeBusiness(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <h2>פרטים שמופיעים על הקבלה</h2>
+    <div class="field"><label>כותרת המסמך</label><input type="text" id="b-title" placeholder="קבלה"></div>
+    <div class="field"><label>שם / שם העסק</label><input type="text" id="b-name"></div>
+    <div class="field-row">
+      <div class="field"><label>ת.ז. / ע.מ.</label><input type="text" id="b-id" dir="ltr" inputmode="numeric"></div>
+      <div class="field"><label>טלפון</label><input type="tel" id="b-phone" dir="ltr"></div>
+    </div>
+    <div class="field"><label>כתובת (לא חובה)</label><input type="text" id="b-address"></div>
+    <div class="field"><label>שורה בתחתית</label><input type="text" id="b-footer" placeholder="תודה!"></div>
+    <button class="btn-primary" onclick="saveBusiness()">שמור</button>
+  </div>
+</div>
+
 <!-- Share Summary Modal -->
 <div class="modal-overlay" id="modal-share" onclick="closeShareModal(event)">
   <div class="modal" onclick="event.stopPropagation()">
@@ -839,6 +878,9 @@ const state = {
   programTraineeId: null,
   shareTraineeId: null,
   shareKind: 'summary',
+  business: {},
+  payType: 'session',
+  receiptId: null,
 };
 
 // ========== STORAGE ==========
@@ -847,6 +889,7 @@ function saveAll() {
     localStorage.setItem('tt_trainees', JSON.stringify(state.trainees));
     localStorage.setItem('tt_sessions', JSON.stringify(state.sessions));
     localStorage.setItem('tt_payments', JSON.stringify(state.payments));
+    localStorage.setItem('tt_business', JSON.stringify(state.business || {}));
     showSaveStatus('saved');
   } catch (e) {
     console.error('Save error:', e);
@@ -862,6 +905,8 @@ function loadAll() {
     if (t) state.trainees = JSON.parse(t);
     if (s) state.sessions = JSON.parse(s);
     if (p) state.payments = JSON.parse(p);
+    const b = localStorage.getItem('tt_business');
+    if (b) state.business = JSON.parse(b);
     migrateData();
   } catch (e) {
     console.error('Load error:', e);
@@ -937,11 +982,46 @@ function getRelativeDate(d) {
   return formatDate(d);
 }
 
+// ========== PAYMENTS & RECEIPTS ==========
+const PAY_TYPES = { session: 'לפי אימון', package: 'חבילה', other: 'אחר' };
+const PAY_METHODS = ['מזומן', 'ביט', 'פייבוקס', 'העברה בנקאית', 'אשראי', 'צ׳ק', 'אחר'];
+
+// How much a payment adds to the session balance. A package covers its sessions at the
+// trainee's price, whatever was actually paid; "other" (equipment etc.) covers no sessions.
+function paymentValue(p) {
+  if (p.isAdjustment) return p.amount;
+  if (p.type === 'package') return (Number(p.sessions) || 0) * (Number(p.rateAtPurchase) || 0);
+  if (p.type === 'other') return 0;
+  return p.amount;
+}
+
+function describePayment(p) {
+  if (p.type === 'package') return `חבילה של ${p.sessions} אימונים`;
+  if (p.type === 'other') return p.notes || 'תשלום';
+  return 'תשלום על אימונים';
+}
+
+// Receipt numbers run per year: 2026-0001, 2026-0002 … A number is never reused, even after a delete.
+function nextReceiptNo(dateStr) {
+  const year = (dateStr || new Date().toISOString()).slice(0, 4);
+  const used = state.payments
+    .map(p => String(p.receiptNo || ''))
+    .filter(n => n.startsWith(year + '-'))
+    .map(n => parseInt(n.slice(5), 10) || 0);
+  const last = ((state.business || {}).lastReceipt || {})[year] || 0;
+  const n = Math.max(last, ...used, 0) + 1;
+  state.business = state.business || {};
+  state.business.lastReceipt = { ...(state.business.lastReceipt || {}), [year]: n };
+  return `${year}-${String(n).padStart(4, '0')}`;
+}
+
+function money(n) { return '₪' + (Number(n) || 0).toLocaleString('he-IL', { maximumFractionDigits: 2 }); }
+
 // Calc balance: positive = credit, negative = debt
 function getTraineeBalance(traineeId) {
   const totalPaid = state.payments
     .filter(p => p.traineeId === traineeId)
-    .reduce((sum, p) => sum + p.amount, 0);
+    .reduce((sum, p) => sum + paymentValue(p), 0);
   const totalSessions = state.sessions
     .filter(s => s.traineeId === traineeId)
     .reduce((sum, s) => sum + s.rate, 0);
@@ -1229,12 +1309,15 @@ function renderHistory() {
             <div class="txn-info">
               <div class="txn-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                תשלום - ${escapeHtml(traineeName)}
+                ${t.type === 'package' ? 'חבילה' : 'תשלום'} - ${escapeHtml(traineeName)}
               </div>
-              <div class="txn-meta">${formatDate(t.date)}${t.notes ? ' · ' + escapeHtml(t.notes) : ''}</div>
+              <div class="txn-meta">${formatDate(t.date)}${t.type === 'package' ? ' · ' + t.sessions + ' אימונים' : ''}${t.method ? ' · ' + escapeHtml(t.method) : ''}${t.receiptNo ? ' · קבלה ' + t.receiptNo : ''}${t.notes ? ' · ' + escapeHtml(t.notes) : ''}</div>
             </div>
             <div style="display:flex;align-items:center;gap:4px;">
               <span class="txn-amount">+₪${t.amount.toLocaleString()}</span>
+              <button class="icon-btn receipt" onclick="openReceipt('${t.id}')" title="קבלה">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 3 2V2l-3 2-3-2-3 2-3-2-3 2z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/></svg>
+              </button>
               <button class="icon-btn edit" onclick="editPayment('${t.id}')" title="ערוך">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
               </button>
@@ -1314,6 +1397,8 @@ function renderTraineeDetail() {
     <div class="current-balance-big ${balCls}" style="margin-bottom:12px;">
       <div class="label">יתרה נוכחית</div>
       <div class="amount">${bl.text}</div>
+      ${stats.balance > 0 && t.rate >= 1 && Math.floor(stats.balance / t.rate) > 0 ? `<div class="label" style="margin-top:4px;">נשארו ${Math.floor(stats.balance / t.rate)} אימונים ששולמו</div>` : ''}
+      ${stats.balance < 0 && t.rate > 0 ? `<div class="label" style="margin-top:4px;">${Math.ceil(Math.abs(stats.balance) / t.rate)} אימונים שעוד לא שולמו</div>` : ''}
     </div>
   `;
 
@@ -1410,12 +1495,15 @@ function renderTraineeDetail() {
             <div class="txn-info">
               <div class="txn-title">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                תשלום
+                ${tx.type === 'package' ? `חבילה · ${tx.sessions} אימונים` : (tx.type === 'other' ? 'תשלום (לא על אימונים)' : 'תשלום')}
               </div>
-              <div class="txn-meta">${formatDate(tx.date)}${tx.notes ? ' · ' + escapeHtml(tx.notes) : ''}</div>
+              <div class="txn-meta">${formatDate(tx.date)}${tx.method ? ' · ' + escapeHtml(tx.method) : ''}${tx.receiptNo ? ' · קבלה ' + tx.receiptNo : ''}${tx.notes ? ' · ' + escapeHtml(tx.notes) : ''}</div>
             </div>
             <div style="display:flex;align-items:center;gap:4px;">
               <span class="txn-amount">+₪${tx.amount.toLocaleString()}</span>
+              <button class="icon-btn receipt" onclick="openReceipt('${tx.id}')" title="קבלה">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 3 2V2l-3 2-3-2-3 2-3-2-3 2z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/></svg>
+              </button>
               <button class="icon-btn edit" onclick="editPayment('${tx.id}')" title="ערוך">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
               </button>
@@ -1595,7 +1683,7 @@ function requestDeletePayment(id) {
   const trainee = state.trainees.find(t => t.id === p.traineeId);
   showConfirm(
     'למחוק את התשלום?',
-    `תשלום ${trainee ? 'של ' + trainee.name + ' ' : ''}בסך ₪${p.amount} (${formatDate(p.date)}).`,
+    `תשלום ${trainee ? 'של ' + trainee.name + ' ' : ''}בסך ₪${p.amount} (${formatDate(p.date)}).${p.receiptNo ? ` קבלה ${p.receiptNo} תימחק איתו (המספר לא יחזור על עצמו).` : ''}`,
     () => {
       state.payments = state.payments.filter(x => x.id !== id);
       saveAll(); render();
@@ -1827,40 +1915,90 @@ function openPaymentModal(traineeId) {
   state.paymentTraineeId = traineeId;
   const trainee = state.trainees.find(t => t.id === traineeId);
   if (!trainee) return;
-  const balance = getTraineeBalance(traineeId);
-  const balCls = balance > 0 ? 'credit' : (balance < 0 ? 'debt' : 'zero');
-  const balText = balance > 0 ? `יתרה ₪${balance.toLocaleString()}` : (balance < 0 ? `חוב ₪${Math.abs(balance).toLocaleString()}` : 'מאוזן');
+  state.payType = 'session';
   const today = new Date().toISOString().split('T')[0];
-
-  // Smart suggestion: if there's debt, suggest paying it off
-  const suggestedAmount = balance < 0 ? Math.abs(balance) : '';
 
   document.querySelector('#modal-payment h2').innerHTML = `
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
     רישום תשלום
   `;
   document.getElementById('payment-form-content').innerHTML = `
-    <div class="current-balance-big ${balCls}">
-      <div class="label">${escapeHtml(trainee.name)} · יתרה נוכחית</div>
-      <div class="amount">${balText}</div>
+    <div id="p-balance"></div>
+    <div class="pay-types">
+      ${Object.entries(PAY_TYPES).map(([k, v]) => `<button type="button" data-type="${k}" onclick="setPayType('${k}')">${v}</button>`).join('')}
+    </div>
+    <div class="pay-hint" id="p-hint"></div>
+    <div class="field" id="p-sessions-wrap">
+      <label>כמה אימונים בחבילה</label>
+      <input type="number" inputmode="numeric" id="p-sessions" value="10" min="2" oninput="updatePayHint()">
     </div>
     <div class="field">
-      <label>סכום ששולם בש״ח <span class="required">*</span></label>
-      <input type="number" inputmode="decimal" id="p-amount" placeholder="לדוגמה: 1000" value="${suggestedAmount}" autofocus>
+      <label>כמה שילם בש״ח <span class="required">*</span></label>
+      <input type="number" inputmode="decimal" id="p-amount" placeholder="לדוגמה: 1000" oninput="updatePayButton()">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>איך שילם</label>
+        <select id="p-method">${PAY_METHODS.map(m => `<option>${m}</option>`).join('')}</select>
+      </div>
+      <div class="field">
+        <label>תאריך</label>
+        <input type="date" id="p-date" value="${today}">
+      </div>
     </div>
     <div class="field">
-      <label>תאריך</label>
-      <input type="date" id="p-date" value="${today}">
-    </div>
-    <div class="field">
-      <label>הערות (לא חובה)</label>
-      <input type="text" id="p-notes" placeholder="לדוגמה: מזומן / העברה בנקאית">
+      <label id="p-notes-label">הערות (לא חובה)</label>
+      <input type="text" id="p-notes">
     </div>
     <div id="payment-error"></div>
-    <button class="btn-primary success" onclick="savePaymentFromForm()">רשום תשלום</button>
+    <button class="btn-primary success" id="p-save" onclick="savePaymentFromForm()">✓ שילם — הפק קבלה</button>
   `;
+  setPayType('session');
   document.getElementById('modal-payment').classList.add('active');
   setTimeout(() => document.getElementById('p-amount').focus(), 100);
+}
+
+function setPayType(type) {
+  state.payType = type;
+  const trainee = state.trainees.find(t => t.id === state.paymentTraineeId);
+  const balance = getTraineeBalance(state.paymentTraineeId);
+  document.querySelectorAll('#payment-form-content .pay-types button').forEach(b => b.classList.toggle('on', b.dataset.type === type));
+  document.getElementById('p-sessions-wrap').style.display = type === 'package' ? '' : 'none';
+  document.getElementById('p-notes-label').textContent = type === 'other' ? 'עבור מה *' : 'הערות (לא חובה)';
+  document.getElementById('p-notes').placeholder = type === 'other' ? 'לדוגמה: ציוד, תוכנית תזונה' : '';
+  const amountEl = document.getElementById('p-amount');
+  if (type === 'session' && balance < 0 && !amountEl.value) amountEl.value = Math.abs(balance);
+  if (type !== 'session' && balance < 0 && Number(amountEl.value) === Math.abs(balance)) amountEl.value = '';
+  const balCls = balance > 0 ? 'credit' : (balance < 0 ? 'debt' : 'zero');
+  const left = balance > 0 && trainee.rate ? Math.floor(balance / trainee.rate) : 0;
+  const balText = balance > 0 ? `יתרה ${money(balance)}${left ? ` · ${left} אימונים` : ''}` : (balance < 0 ? `חוב ${money(Math.abs(balance))}` : 'מאוזן');
+  document.getElementById('p-balance').innerHTML = `
+    <div class="current-balance-big ${balCls}" style="margin-bottom:12px;">
+      <div class="label">${escapeHtml(trainee.name)} · יתרה נוכחית</div>
+      <div class="amount">${balText}</div>
+    </div>`;
+  updatePayHint();
+  updatePayButton();
+}
+
+function updatePayHint() {
+  const trainee = state.trainees.find(t => t.id === state.paymentTraineeId);
+  const el = document.getElementById('p-hint');
+  if (!trainee || !el) return;
+  if (state.payType === 'package') {
+    const n = parseInt(document.getElementById('p-sessions').value, 10) || 0;
+    el.textContent = n ? `${n} אימונים נכנסים ליתרה (${n} × ${money(trainee.rate)}), לא משנה כמה שילם בפועל` : '';
+  } else if (state.payType === 'other') {
+    el.textContent = 'נכנס לקבלה ולסך ההכנסות, לא משנה את יתרת האימונים';
+  } else {
+    el.textContent = `הסכום יורד מהחוב · ${money(trainee.rate)} לאימון`;
+  }
+}
+
+function updatePayButton() {
+  const btn = document.getElementById('p-save');
+  const a = parseFloat(document.getElementById('p-amount').value);
+  if (btn) btn.textContent = `✓ שילם${a > 0 ? ' ' + money(a) : ''} — הפק קבלה`;
 }
 
 function editPayment(id) {
@@ -1883,6 +2021,11 @@ function editPayment(id) {
     <div class="field">
       <label>סכום בש״ח <span class="required">*</span></label>
       <input type="number" inputmode="decimal" id="p-amount" value="${p.amount}" autofocus>
+    </div>
+    ${p.type === 'package' ? `<div class="field"><label>כמה אימונים בחבילה</label><input type="number" inputmode="numeric" id="p-sessions" value="${p.sessions}"></div>` : ''}
+    <div class="field">
+      <label>איך שילם</label>
+      <select id="p-method">${PAY_METHODS.map(m => `<option${m === (p.method || 'מזומן') ? ' selected' : ''}>${m}</option>`).join('')}</select>
     </div>
     <div class="field">
       <label>תאריך</label>
@@ -1910,7 +2053,15 @@ function savePaymentFromForm() {
   const amount = parseFloat(amountStr);
   const date = document.getElementById('p-date').value;
   const notes = document.getElementById('p-notes').value.trim();
+  const methodEl = document.getElementById('p-method');
+  const method = methodEl ? methodEl.value : '';
+  const sessionsEl = document.getElementById('p-sessions');
+  const sessions = sessionsEl ? parseInt(sessionsEl.value, 10) || 0 : 0;
   const errorEl = document.getElementById('payment-error');
+  const errBox = (msg) => `<div class="error-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg> ${msg}</div>`;
+  const type = state.editingPayment ? (state.editingPayment.type || 'session') : (state.payType || 'session');
+  if (type === 'package' && sessions < 2) { errorEl.innerHTML = errBox('בחבילה צריך לפחות 2 אימונים'); return; }
+  if (type === 'other' && !notes) { errorEl.innerHTML = errBox('כתוב עבור מה התשלום'); return; }
 
   if (!amountStr || isNaN(amount) || amount <= 0) {
     errorEl.innerHTML = `<div class="error-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg> סכום חייב להיות מספר חיובי</div>`;
@@ -1928,6 +2079,8 @@ function savePaymentFromForm() {
     p.amount = amount;
     p.date = date;
     p.notes = notes;
+    if (method) p.method = method;
+    if (p.type === 'package' && sessions) p.sessions = sessions;
     saveAll();
     const traineeId = p.traineeId;
     closePaymentModal({target:{id:'modal-payment'}});
@@ -1944,23 +2097,122 @@ function savePaymentFromForm() {
     const traineeId = state.paymentTraineeId;
     const trainee = state.trainees.find(t => t.id === traineeId);
     if (!trainee) return;
-    state.payments.push({
+    const payment = {
       id: Date.now().toString() + Math.random().toString(36).slice(2),
-      traineeId, amount, date, notes,
+      traineeId, amount, date, notes, type, method,
+      sessions: type === 'package' ? sessions : 0,
+      rateAtPurchase: trainee.rate,
+      receiptNo: nextReceiptNo(date),
       createdAt: new Date().toISOString()
-    });
+    };
+    state.payments.push(payment);
     // A new payment starts a fresh cycle - the "sessions since payment" counter resets
-    trainee.cycleStartAt = new Date().toISOString();
+    if (type !== 'other') trainee.cycleStartAt = new Date().toISOString();
     saveAll();
     closePaymentModal({target:{id:'modal-payment'}});
     render();
+    openReceipt(payment.id);
     const newBalance = getTraineeBalance(traineeId);
     let msg = `💵 תשלום ₪${amount.toLocaleString()} ל${trainee.name} · `;
     if (newBalance > 0) msg += `יתרה ₪${newBalance.toLocaleString()}`;
     else if (newBalance < 0) msg += `נותר חוב ₪${Math.abs(newBalance).toLocaleString()}`;
     else msg += `מאוזן`;
-    showToast(msg + ' · מונה האימונים אופס');
+    showToast(`💵 נרשם · קבלה ${payment.receiptNo}`);
   }
+}
+
+// ========== RECEIPT ==========
+function openReceipt(id) {
+  const p = state.payments.find(x => x.id === id);
+  if (!p) return;
+  if (!p.receiptNo) { p.receiptNo = nextReceiptNo(p.date); saveAll(); render(); }
+  state.receiptId = id;
+  const trainee = state.trainees.find(t => t.id === p.traineeId);
+  const biz = state.business || {};
+  document.getElementById('receipt-title').textContent = `${biz.title || 'קבלה'} מס׳ ${p.receiptNo}`;
+  const phone = trainee && trainee.phone ? String(trainee.phone).replace(/\D/g, '').replace(/^0/, '972') : '';
+  document.getElementById('receipt-content').innerHTML = `
+    <div class="receipt-card">
+      <div class="r-row"><span>התקבל מאת</span><strong>${escapeHtml(trainee ? trainee.name : '—')}</strong></div>
+      <div class="r-row"><span>עבור</span><strong>${escapeHtml(describePayment(p))}</strong></div>
+      <div class="r-row"><span>סכום</span><span class="r-amount">${money(p.amount)}</span></div>
+      ${p.method ? `<div class="r-row"><span>אמצעי תשלום</span><strong>${escapeHtml(p.method)}</strong></div>` : ''}
+      <div class="r-row"><span>תאריך</span><strong>${formatDateLong(p.date)}</strong></div>
+    </div>
+    ${!biz.name ? `<div class="receipt-warn">⚠ עוד אין על הקבלה את הפרטים שלך (שם, ת.ז./ע.מ.). <button class="link-btn" onclick="openBusiness()">מלא פרטים</button></div>` : ''}
+    <button class="btn-primary" onclick="printReceipt()">🖨 הדפסה / שמירה כ-PDF</button>
+    ${phone ? `<button class="btn-primary whatsapp" onclick="sendReceiptWhatsapp('${phone}')">💬 שליחה בוואטסאפ</button>` : ''}
+    <button class="btn-secondary" onclick="openBusiness()">הפרטים שלי על הקבלה</button>
+    <div class="receipt-note">זה מסמך שהאפליקציה מפיקה, לא מערכת חשבוניות מוסדרת. אם אתה חייב בקבלה כחוק (עוסק פטור/מורשה) — הפק אותה גם בתוכנת הנהלת החשבונות.</div>
+  `;
+  document.getElementById('modal-receipt').classList.add('active');
+}
+
+function closeReceipt(event) {
+  if (event && event.target.id !== 'modal-receipt') return;
+  document.getElementById('modal-receipt').classList.remove('active');
+}
+
+function receiptHtml(p) {
+  const trainee = state.trainees.find(t => t.id === p.traineeId);
+  const biz = state.business || {};
+  const title = escapeHtml(biz.title || 'קבלה');
+  const row = (k, v) => v ? `<tr><td class="k">${k}</td><td>${escapeHtml(v)}</td></tr>` : '';
+  return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${title} ${escapeHtml(p.receiptNo)}</title>
+<style>body{font-family:Arial,sans-serif;margin:0;padding:28px;color:#111}.card{max-width:560px;margin:0 auto;border:2px solid #ea580c;border-radius:14px;padding:26px}
+h1{margin:0;font-size:30px}.sub{color:#666;margin:2px 0 0}.head{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #ddd;padding-bottom:14px;margin-bottom:16px}
+table{width:100%;border-collapse:collapse}td{padding:7px 0;border-bottom:1px solid #eee}td.k{color:#666;width:34%}.amount{font-size:34px;font-weight:800;margin:18px 0 4px}.foot{margin-top:22px;color:#666;font-size:13px}@media print{body{padding:0}}</style>
+</head><body><div class="card"><div class="head"><div><h1>${title}</h1><div class="sub">מס׳ ${escapeHtml(p.receiptNo)} · ${formatDateLong(p.date)}</div></div>
+<div style="text-align:left"><strong>${escapeHtml(biz.name || '')}</strong><br>${biz.idNumber ? 'ע.מ./ת.ז. ' + escapeHtml(biz.idNumber) : ''}<br>${escapeHtml(biz.phone || '')}<br>${escapeHtml(biz.address || '')}</div></div>
+<table>${row('התקבל מאת', trainee ? trainee.name : '')}${row('עבור', describePayment(p))}${row('אמצעי תשלום', p.method)}${row('הערה', p.type === 'other' ? '' : p.notes)}</table>
+<div class="amount">${money(p.amount)}</div><div class="foot">${escapeHtml(biz.footer || 'תודה!')}</div></div></body></html>`;
+}
+
+function printReceipt() {
+  const p = state.payments.find(x => x.id === state.receiptId);
+  if (!p) return;
+  const w = window.open('', '_blank');
+  if (!w) { showToast('⚠️ הדפדפן חסם חלון חדש'); return; }
+  w.document.write(receiptHtml(p));
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 350);
+}
+
+function sendReceiptWhatsapp(phone) {
+  const p = state.payments.find(x => x.id === state.receiptId);
+  if (!p) return;
+  const trainee = state.trainees.find(t => t.id === p.traineeId);
+  const biz = state.business || {};
+  const first = trainee ? trainee.name.split(' ')[0] : '';
+  const text = `היי ${first}, ${biz.title || 'קבלה'} מס׳ ${p.receiptNo}\n${describePayment(p)} · ${money(p.amount)}${p.method ? ` (${p.method})` : ''}\nתאריך: ${formatDateLong(p.date)}\nתודה${biz.name ? ', ' + biz.name : ''}!`;
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+}
+
+function openBusiness() {
+  const b = state.business || {};
+  document.getElementById('b-title').value = b.title || 'קבלה';
+  document.getElementById('b-name').value = b.name || '';
+  document.getElementById('b-id').value = b.idNumber || '';
+  document.getElementById('b-phone').value = b.phone || '';
+  document.getElementById('b-address').value = b.address || '';
+  document.getElementById('b-footer').value = b.footer || 'תודה!';
+  document.getElementById('modal-business').classList.add('active');
+}
+
+function closeBusiness(event) {
+  if (event && event.target.id !== 'modal-business') return;
+  document.getElementById('modal-business').classList.remove('active');
+}
+
+function saveBusiness() {
+  const v = (id) => document.getElementById(id).value.trim();
+  state.business = { ...(state.business || {}), title: v('b-title') || 'קבלה', name: v('b-name'), idNumber: v('b-id'), phone: v('b-phone'), address: v('b-address'), footer: v('b-footer') };
+  saveAll();
+  closeBusiness({ target: { id: 'modal-business' } });
+  if (state.receiptId && document.getElementById('modal-receipt').classList.contains('active')) openReceipt(state.receiptId);
+  showToast('✓ הפרטים נשמרו');
 }
 
 // ========== SHARE MODAL ==========
@@ -2142,7 +2394,8 @@ function openBackup() {
     exportedAt: new Date().toISOString(),
     trainees: state.trainees,
     sessions: state.sessions,
-    payments: state.payments
+    payments: state.payments,
+    business: state.business || {}
   };
   document.getElementById('backup-export').value = JSON.stringify(backup, null, 2);
   document.getElementById('export-count').textContent = `(${state.trainees.length} מתאמנים, ${state.sessions.length} אימונים, ${state.payments.length} תשלומים)`;
@@ -2176,6 +2429,7 @@ function restoreBackup() {
     state.trainees = data.trainees;
     state.sessions = data.sessions;
     state.payments = Array.isArray(data.payments) ? data.payments : [];
+    if (data.business) state.business = data.business;
     migrateData();
     saveAll();
     closeBackup({target:{id:'modal-backup'}});
