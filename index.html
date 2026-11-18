@@ -294,6 +294,14 @@ svg { display: inline-block; vertical-align: middle; }
 .btn-primary:active { transform: scale(0.98); }
 .btn-primary:disabled { opacity: 0.5; }
 
+.pay-methods { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.pay-methods button { padding: 11px 4px; border-radius: 12px; background: #0c0a09; border: 1px solid #292524; color: #d6d3d1; font-weight: 600; font-size: 14px; }
+.pay-methods button.on { border-color: #10b981; color: #34d399; background: rgba(16,185,129,0.12); }
+.inv-toggle { display: flex; align-items: center; gap: 10px; margin: 4px 0 6px; font-size: 14px; color: #d6d3d1; }
+.inv-toggle input { width: 20px; height: 20px; accent-color: #10b981; -webkit-appearance: auto; appearance: auto; }
+.inv-link { color: #34d399; font-weight: 700; text-decoration: none; }
+.inv-fail { color: #fb7185; font-weight: 700; background: none; padding: 0; font-size: 12px; }
+.inv-sandbox { font-size: 10px; color: #fbbf24; border: 1px solid #b45309; border-radius: 6px; padding: 0 4px; margin-inline-start: 4px; }
 .btn-secondary {
   width: 100%; padding: 10px; border-radius: 12px;
   background: #292524; color: #d6d3d1; font-weight: 500;
@@ -630,6 +638,7 @@ body.logged-out { overflow: hidden; }
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
           גיבוי
         </button>
+        <button class="backup-btn" onclick="openMorning()" id="morning-btn">חשבוניות</button>
         <button class="backup-btn" onclick="logout()" title="התנתק">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         </button>
@@ -731,6 +740,10 @@ body.logged-out { overflow: hidden; }
       <label>טלפון (לוואטסאפ ושיתוף סיכומים)</label>
       <input type="tel" id="t-phone" placeholder="050-1234567">
     </div>
+    <div class="field">
+      <label>מייל (לא חובה — מורנינג תשלח אליו את החשבונית)</label>
+      <input type="email" id="t-email" dir="ltr" placeholder="name@gmail.com">
+    </div>
     <button class="btn-primary" onclick="saveTraineeFromForm()" id="trainee-submit">הוסף מתאמן</button>
   </div>
 </div>
@@ -753,6 +766,20 @@ body.logged-out { overflow: hidden; }
       רישום תשלום
     </h2>
     <div id="payment-form-content"></div>
+  </div>
+</div>
+
+<!-- Morning (Green Invoice) connection -->
+<div class="modal-overlay" id="modal-morning" onclick="closeMorning(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <h2>חיבור למורנינג</h2>
+    <p class="subtitle">כשמחובר, כל תשלום שתרשום יפיק לבד חשבונית מס/קבלה במורנינג. ממלאים פעם אחת; הפרטים נשמרים רק בטלפון הזה.</p>
+    <div class="field"><label>כתובת החיבור</label><input type="url" id="m-url" dir="ltr" placeholder="https://xxxx.supabase.co/functions/v1/morning-invoice"></div>
+    <div class="field"><label>סיסמת החיבור</label><input type="password" id="m-secret" dir="ltr" autocomplete="off"></div>
+    <label class="inv-toggle"><input type="checkbox" id="m-on"> להפיק חשבונית בכל תשלום</label>
+    <button class="btn-primary success" onclick="saveMorning()">שמור</button>
+    <button class="btn-secondary" onclick="clearMorning()">נתק</button>
   </div>
 </div>
 
@@ -1231,7 +1258,7 @@ function renderHistory() {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                 תשלום - ${escapeHtml(traineeName)}
               </div>
-              <div class="txn-meta">${formatDate(t.date)}${t.notes ? ' · ' + escapeHtml(t.notes) : ''}</div>
+              <div class="txn-meta">${formatDate(t.date)}${t.method ? ' · ' + escapeHtml(t.method) : ''}${t.notes ? ' · ' + escapeHtml(t.notes) : ''}${invoiceBadge(t)}</div>
             </div>
             <div style="display:flex;align-items:center;gap:4px;">
               <span class="txn-amount">+₪${t.amount.toLocaleString()}</span>
@@ -1412,7 +1439,7 @@ function renderTraineeDetail() {
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
                 תשלום
               </div>
-              <div class="txn-meta">${formatDate(tx.date)}${tx.notes ? ' · ' + escapeHtml(tx.notes) : ''}</div>
+              <div class="txn-meta">${formatDate(tx.date)}${tx.method ? ' · ' + escapeHtml(tx.method) : ''}${tx.notes ? ' · ' + escapeHtml(tx.notes) : ''}${invoiceBadge(tx)}</div>
             </div>
             <div style="display:flex;align-items:center;gap:4px;">
               <span class="txn-amount">+₪${tx.amount.toLocaleString()}</span>
@@ -1501,6 +1528,7 @@ function openTraineeModal() {
   document.getElementById('t-name').value = '';
   document.getElementById('t-rate').value = '';
   document.getElementById('t-phone').value = '';
+  document.getElementById('t-email').value = '';
   document.getElementById('trainee-error').innerHTML = '';
   document.getElementById('modal-trainee').classList.add('active');
   setTimeout(() => document.getElementById('t-name').focus(), 100);
@@ -1515,6 +1543,7 @@ function editTrainee(id) {
   document.getElementById('t-name').value = t.name;
   document.getElementById('t-rate').value = t.rate;
   document.getElementById('t-phone').value = t.phone || '';
+  document.getElementById('t-email').value = t.email || '';
   document.getElementById('trainee-error').innerHTML = '';
   document.getElementById('modal-trainee').classList.add('active');
 }
@@ -1529,6 +1558,7 @@ function saveTraineeFromForm() {
   const name = document.getElementById('t-name').value.trim();
   const rateStr = document.getElementById('t-rate').value.trim();
   const phone = document.getElementById('t-phone').value.trim();
+  const email = document.getElementById('t-email').value.trim();
   const rate = parseFloat(rateStr);
   const errorEl = document.getElementById('trainee-error');
 
@@ -1543,12 +1573,12 @@ function saveTraineeFromForm() {
 
   if (state.editingTrainee) {
     const t = state.trainees.find(x => x.id === state.editingTrainee.id);
-    if (t) { t.name = name; t.rate = rate; t.phone = phone; }
+    if (t) { t.name = name; t.rate = rate; t.phone = phone; t.email = email; }
     showToast(`✏️ ${name} עודכן`);
   } else {
     state.trainees.push({
       id: Date.now().toString() + Math.random().toString(36).slice(2),
-      name, rate, phone, createdAt: new Date().toISOString(),
+      name, rate, phone, email, createdAt: new Date().toISOString(),
       cycleStartAt: new Date().toISOString()
     });
     showToast(`👤 ${name} נוסף`);
@@ -1595,7 +1625,7 @@ function requestDeletePayment(id) {
   const trainee = state.trainees.find(t => t.id === p.traineeId);
   showConfirm(
     'למחוק את התשלום?',
-    `תשלום ${trainee ? 'של ' + trainee.name + ' ' : ''}בסך ₪${p.amount} (${formatDate(p.date)}).`,
+    `תשלום ${trainee ? 'של ' + trainee.name + ' ' : ''}בסך ₪${p.amount} (${formatDate(p.date)}).${p.invoice && p.invoice.status === 'ok' ? ` חשבונית ${p.invoice.number} נשארת במורנינג — לביטול שלה צריך להפיק חשבונית זיכוי במורנינג.` : ''}`,
     () => {
       state.payments = state.payments.filter(x => x.id !== id);
       saveAll(); render();
@@ -1853,9 +1883,14 @@ function openPaymentModal(traineeId) {
       <input type="date" id="p-date" value="${today}">
     </div>
     <div class="field">
-      <label>הערות (לא חובה)</label>
-      <input type="text" id="p-notes" placeholder="לדוגמה: מזומן / העברה בנקאית">
+      <label>איך שילם</label>
+      <div class="pay-methods">${PAY_METHODS.map(m => `<button type="button" data-m="${m}" class="${m === lastMethod() ? 'on' : ''}" onclick="pickMethod(this)">${m}</button>`).join('')}</div>
     </div>
+    <div class="field">
+      <label>הערות (לא חובה)</label>
+      <input type="text" id="p-notes">
+    </div>
+    ${morningReady() ? `<label class="inv-toggle"><input type="checkbox" id="p-invoice" ${morningCfg().on !== false ? 'checked' : ''}> להפיק חשבונית מס/קבלה במורנינג</label>` : ''}
     <div id="payment-error"></div>
     <button class="btn-primary success" onclick="savePaymentFromForm()">רשום תשלום</button>
   `;
@@ -1880,6 +1915,7 @@ function editPayment(id) {
       <div class="label">${escapeHtml(traineeName)}</div>
       <div class="amount" style="font-size:18px;">תשלום מ-${formatDate(p.date)}</div>
     </div>
+    ${p.invoice && p.invoice.status === 'ok' ? `<div style="color:#fbbf24;font-size:13px;margin-bottom:10px;">⚠ לתשלום הזה הופקה חשבונית ${p.invoice.number}. שינוי כאן לא משנה אותה במורנינג.</div>` : ''}
     <div class="field">
       <label>סכום בש״ח <span class="required">*</span></label>
       <input type="number" inputmode="decimal" id="p-amount" value="${p.amount}" autofocus>
@@ -1944,11 +1980,17 @@ function savePaymentFromForm() {
     const traineeId = state.paymentTraineeId;
     const trainee = state.trainees.find(t => t.id === traineeId);
     if (!trainee) return;
-    state.payments.push({
+    const method = selectedMethod();
+    const invEl = document.getElementById('p-invoice');
+    const wantInvoice = !!(invEl && invEl.checked);
+    try { localStorage.setItem('tt_last_method', method); } catch (e) {}
+    const payment = {
       id: Date.now().toString() + Math.random().toString(36).slice(2),
-      traineeId, amount, date, notes,
+      traineeId, amount, date, notes, method,
       createdAt: new Date().toISOString()
-    });
+    };
+    if (wantInvoice) payment.invoice = { status: 'pending', at: Date.now() };
+    state.payments.push(payment);
     // A new payment starts a fresh cycle - the "sessions since payment" counter resets
     trainee.cycleStartAt = new Date().toISOString();
     saveAll();
@@ -1960,7 +2002,103 @@ function savePaymentFromForm() {
     else if (newBalance < 0) msg += `נותר חוב ₪${Math.abs(newBalance).toLocaleString()}`;
     else msg += `מאוזן`;
     showToast(msg + ' · מונה האימונים אופס');
+    if (wantInvoice) issueInvoice(payment.id);
   }
+}
+
+// ========== MORNING (GREEN INVOICE) ==========
+// The app never holds the Morning API key: it calls a small server function (Supabase
+// "morning-invoice") with a password of your own; the function issues the document.
+const PAY_METHODS = ['מזומן', 'ביט', 'העברה בנקאית', 'פייבוקס', 'אשראי'];
+
+function lastMethod() {
+  try { const m = localStorage.getItem('tt_last_method'); if (PAY_METHODS.includes(m)) return m; } catch (e) {}
+  return 'מזומן';
+}
+function pickMethod(btn) {
+  document.querySelectorAll('.pay-methods button').forEach(b => b.classList.toggle('on', b === btn));
+}
+function selectedMethod() {
+  const on = document.querySelector('.pay-methods button.on');
+  return on ? on.dataset.m : lastMethod();
+}
+function morningCfg() {
+  try { return JSON.parse(localStorage.getItem('tt_morning') || '{}'); } catch (e) { return {}; }
+}
+function morningReady() { const c = morningCfg(); return !!(c.url && c.secret); }
+
+function invoiceBadge(p) {
+  const inv = p.invoice;
+  if (!inv) return '';
+  if (inv.status === 'ok') return ` · <a class="inv-link" href="${escapeHtml(inv.url || '#')}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🧾 חשבונית ${escapeHtml(String(inv.number))}</a>${inv.env === 'sandbox' ? '<span class="inv-sandbox">ניסיון</span>' : ''}`;
+  if (inv.status === 'pending' && Date.now() - (inv.at || 0) < 120000) return ' · מפיק חשבונית…';
+  if (inv.status === 'pending') return ` · <button class="inv-fail" onclick="event.stopPropagation(); retryUnknownInvoice('${p.id}')">⚠ לא ידוע אם החשבונית הופקה</button>`;
+  return ` · <button class="inv-fail" onclick="event.stopPropagation(); issueInvoice('${p.id}')" title="${escapeHtml(inv.error || '')}">⚠ חשבונית לא הופקה · נסה שוב</button>`;
+}
+
+async function issueInvoice(paymentId) {
+  const p = state.payments.find(x => x.id === paymentId);
+  if (!p || !morningReady()) return;
+  if (p.invoice && p.invoice.status === 'ok') return; // never issue twice for one payment
+  const t = state.trainees.find(x => x.id === p.traineeId) || {};
+  const cfg = morningCfg();
+  p.invoice = { status: 'pending', at: Date.now() };
+  saveAll(); render();
+  try {
+    const r = await fetch(cfg.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-app-secret': cfg.secret },
+      body: JSON.stringify({
+        clientId: t.morningClientId || '', name: t.name || '', phone: t.phone || '', email: t.email || '',
+        amount: p.amount, method: p.method || 'מזומן', date: p.date, description: 'אימונים אישיים'
+      })
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || ('שגיאה ' + r.status));
+    p.invoice = { status: 'ok', number: j.number, url: j.url, id: j.id, env: j.env };
+    if (j.clientId && t.id && !t.morningClientId) t.morningClientId = j.clientId;
+    saveAll(); render();
+    showToast(`🧾 חשבונית ${j.number} הופקה במורנינג`);
+  } catch (e) {
+    p.invoice = { status: 'error', error: e.message };
+    saveAll(); render();
+    showToast('⚠️ החשבונית לא הופקה — ' + e.message);
+  }
+}
+
+// The app closed while the invoice was being issued: it may exist in Morning already.
+function retryUnknownInvoice(id) {
+  showConfirm('להפיק שוב את החשבונית?', 'ייתכן שהחשבונית כבר הופקה (האפליקציה נסגרה באמצע). בדוק קודם במורנינג — אם היא שם, אל תפיק שוב.', () => {
+    const p = state.payments.find(x => x.id === id);
+    if (p) p.invoice = { status: 'error', error: 'retry' };
+    closeConfirm();
+    issueInvoice(id);
+  });
+}
+
+function openMorning() {
+  const c = morningCfg();
+  document.getElementById('m-url').value = c.url || '';
+  document.getElementById('m-secret').value = c.secret || '';
+  document.getElementById('m-on').checked = c.on !== false;
+  document.getElementById('modal-morning').classList.add('active');
+}
+function closeMorning(event) {
+  if (event && event.target.id !== 'modal-morning') return;
+  document.getElementById('modal-morning').classList.remove('active');
+}
+function saveMorning() {
+  const url = document.getElementById('m-url').value.trim();
+  const secret = document.getElementById('m-secret').value;
+  if (!/^https:\/\//.test(url) || !secret) { showToast('⚠️ צריך כתובת (https) וסיסמה'); return; }
+  try { localStorage.setItem('tt_morning', JSON.stringify({ url, secret, on: document.getElementById('m-on').checked })); } catch (e) {}
+  closeMorning({ target: { id: 'modal-morning' } });
+  showToast('✓ מחובר למורנינג');
+}
+function clearMorning() {
+  try { localStorage.removeItem('tt_morning'); } catch (e) {}
+  closeMorning({ target: { id: 'modal-morning' } });
+  showToast('החיבור למורנינג נותק');
 }
 
 // ========== SHARE MODAL ==========
